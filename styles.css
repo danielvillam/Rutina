@@ -748,3 +748,134 @@ input.invalid, textarea.invalid, select.invalid { border-color: var(--accent3); 
   gap: 3px;
 }
 
+/* ────────────────────────────────────────────
+   RECURRENCE UI
+────────────────────────────────────────────── */
+
+/* Toggle switch row */
+.recur-toggle-row { margin-bottom: 6px; }
+
+.toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text);
+  user-select: none;
+}
+
+/* Hide native checkbox */
+.toggle-label input[type="checkbox"] { display: none; }
+
+/* Custom pill toggle */
+.toggle-slider {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  background: var(--border);
+  border-radius: 11px;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+.toggle-label input:checked ~ .toggle-slider {
+  background: var(--accent);
+}
+.toggle-label input:checked ~ .toggle-slider::after {
+  transform: translateX(18px);
+}
+
+/* Collapsible recurrence details */
+.recur-section {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: none;          /* toggled by JS */
+  flex-direction: column;
+  gap: 14px;
+}
+.recur-section.open { display: flex; }
+
+/* Days-of-week checkbox grid */
+.dow-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.dow-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  transition: var(--transition);
+  user-select: none;
+}
+.dow-item:hover { border-color: var(--accent); color: var(--text); }
+.dow-item input[type="checkbox"] { display: none; }
+.dow-item:has(input:checked) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Repeat badge on activity cards */
+.act-recur-badge {
+  font-size: 0.72rem;
+  background: rgba(108, 99, 255, 0.18);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 2px 7px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* Danger button (red) */
+.btn-danger {
+  padding: 8px 18px;
+  background: transparent;
+  color: var(--accent3);
+  border: 1px solid var(--accent3);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: var(--transition);
+}
+.btn-danger:hover {
+  background: var(--accent3);
+  color: #fff;
+}
+
+/* Recurrence delete modal specifics */
+.recur-delete-modal { max-width: 420px; }
+.recur-delete-msg {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin: 4px 0 20px;
+}
+.recur-del-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}

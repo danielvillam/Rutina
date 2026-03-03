@@ -205,6 +205,46 @@
             <label for="act-desc">Descripción (opcional)</label>
             <textarea id="act-desc" placeholder="Añade detalles sobre la actividad..." rows="3" maxlength="500"></textarea>
           </div>
+
+          <!-- ── RECURRENCE ── -->
+          <div class="form-group recur-toggle-row">
+            <label class="toggle-label">
+              <input type="checkbox" id="act-recur-enabled" />
+              <span class="toggle-slider"></span>
+              <span class="toggle-text">Repetir esta actividad</span>
+            </label>
+          </div>
+          <div class="recur-section" id="act-recur-section">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="act-recur-freq">Frecuencia</label>
+                <select id="act-recur-freq">
+                  <option value="daily">Diaria</option>
+                  <option value="weekly" selected>Semanal</option>
+                  <option value="monthly">Mensual</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="act-recur-end">Repetir hasta *</label>
+                <input type="date" id="act-recur-end" />
+                <span class="field-error" id="err-recur-end"></span>
+              </div>
+            </div>
+            <div class="form-group" id="act-recur-days-group">
+              <label>Días de la semana</label>
+              <div class="dow-grid">
+                <label class="dow-item"><input type="checkbox" name="act-dow" value="1" /> Lun</label>
+                <label class="dow-item"><input type="checkbox" name="act-dow" value="2" /> Mar</label>
+                <label class="dow-item"><input type="checkbox" name="act-dow" value="3" /> Mié</label>
+                <label class="dow-item"><input type="checkbox" name="act-dow" value="4" /> Jue</label>
+                <label class="dow-item"><input type="checkbox" name="act-dow" value="5" /> Vie</label>
+                <label class="dow-item"><input type="checkbox" name="act-dow" value="6" /> Sáb</label>
+                <label class="dow-item"><input type="checkbox" name="act-dow" value="0" /> Dom</label>
+              </div>
+              <span class="field-error" id="err-recur-days"></span>
+            </div>
+          </div>
+
           <div class="form-actions">
             <button type="button" class="btn-secondary" id="clear-form-btn">Limpiar</button>
             <button type="submit" class="btn-primary" id="save-form-btn">Guardar Actividad</button>
@@ -289,6 +329,25 @@
           <button type="submit" class="btn-primary" id="modal-save-btn">Guardar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- RECURRENCE DELETE CONFIRM OVERLAY -->
+  <div class="modal-overlay" id="recur-delete-overlay">
+    <div class="modal recur-delete-modal">
+      <div class="modal-header">
+        <h3>Eliminar actividad recurrente</h3>
+        <button class="modal-close" id="recur-del-cancel-x">✕</button>
+      </div>
+      <p class="recur-delete-msg">
+        Esta actividad forma parte de una serie recurrente.
+        ¿Qué deseas eliminar?
+      </p>
+      <div class="form-actions recur-del-actions">
+        <button class="btn-secondary" id="recur-del-cancel">Cancelar</button>
+        <button class="btn-secondary" id="recur-del-one">Solo esta</button>
+        <button class="btn-danger" id="recur-del-future">Esta y las siguientes</button>
+      </div>
     </div>
   </div>
 

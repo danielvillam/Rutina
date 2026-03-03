@@ -338,6 +338,15 @@ function buildCard(act, { showDate = false } = {}) {
   badge.textContent = catNames[cat] || cat;
   meta.appendChild(badge);
 
+  // Recurring badge
+  if (act.recurrenceGroupId) {
+    const recurBadge = document.createElement('span');
+    recurBadge.className = 'act-recur-badge';
+    recurBadge.title = 'Actividad recurrente';
+    recurBadge.textContent = '\uD83D\uDD01 Recurrente';
+    meta.appendChild(recurBadge);
+  }
+
   body.appendChild(name);
   body.appendChild(meta);
 
@@ -355,7 +364,7 @@ function buildCard(act, { showDate = false } = {}) {
   delBtn.className = 'btn-icon';
   delBtn.title = 'Eliminar';
   delBtn.textContent = '\uD83D\uDDD1';
-  delBtn.addEventListener('click', () => deleteActivity(act._id));
+  delBtn.addEventListener('click', () => deleteActivity(act._id, act.recurrenceGroupId));
   actions.appendChild(delBtn);
 
   card.appendChild(check);
@@ -448,28 +457,74 @@ async function toggleDone(id) {
 // 
 // DELETE
 // 
-async function deleteActivity(id) {
+
+// Pending delete state (used by the recurrence confirm overlay)
+let pendingDeleteId = null;
+
+function showRecurDeleteConfirm(id) {
+  pendingDeleteId = id;
+  document.getElementById('recur-delete-overlay').classList.add('open');
+}
+function hideRecurDeleteConfirm() {
+  pendingDeleteId = null;
+  document.getElementById('recur-delete-overlay').classList.remove('open');
+}
+
+// id            - activity _id
+// recurrenceGroupId - truthy if this activity belongs to a series
+function deleteActivity(id, recurrenceGroupId) {
+  if (recurrenceGroupId) {
+    showRecurDeleteConfirm(id);
+  } else {
+    doDelete(id, null);
+  }
+}
+
+async function doDelete(id, scope) {
   try {
-    await apiFetch(`/activities/${id}`, { method: 'DELETE' });
-    activities = activities.filter(a => a._id !== id);
+    const url = scope ? `/activities/${id}?scope=${scope}` : `/activities/${id}`;
+    await apiFetch(url, { method: 'DELETE' });
+    // Reload from server to ensure consistency (especially for 'future' scope)
+    await loadActivities();
+    hideRecurDeleteConfirm();
     if (currentView === 'dashboard') renderDashboard();
     else renderAll();
-    showToast('Actividad eliminada', 'error');
+    const msg = scope === 'future' ? 'Serie de actividades eliminada' : 'Actividad eliminada';
+    showToast(msg, 'error');
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
   }
 }
 
+// Recurrence delete overlay buttons
+document.getElementById('recur-del-cancel').addEventListener('click', hideRecurDeleteConfirm);
+document.getElementById('recur-del-cancel-x').addEventListener('click', hideRecurDeleteConfirm);
+document.getElementById('recur-del-one').addEventListener('click', () => {
+  if (pendingDeleteId) doDelete(pendingDeleteId, null);
+});
+document.getElementById('recur-del-future').addEventListener('click', () => {
+  if (pendingDeleteId) doDelete(pendingDeleteId, 'future');
+});
+document.getElementById('recur-delete-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'recur-delete-overlay') hideRecurDeleteConfirm();
+});
+
 // 
 // ADD ACTIVITY
+// Returns: a single Activity object (non-recurrent) or an array (recurrent)
 // 
 async function addActivity(data) {
   const res = await apiFetch('/activities', {
     method: 'POST',
     body: JSON.stringify(data),
   });
+  // Recurrent creation returns an array
+  if (Array.isArray(res.data)) {
+    activities.push(...res.data);
+    return res.data;          // array
+  }
   activities.push(res.data);
-  return res.data;
+  return res.data;            // single object
 }
 
 // 
@@ -517,6 +572,41 @@ const actCat       = document.getElementById('act-category');
 const actDesc      = document.getElementById('act-desc');
 const saveFormBtn  = document.getElementById('save-form-btn');
 
+// ─ Recurrence controls ─
+const actRecurEnabled = document.getElementById('act-recur-enabled');
+const actRecurSection = document.getElementById('act-recur-section');
+const actRecurFreq    = document.getElementById('act-recur-freq');
+const actRecurEnd     = document.getElementById('act-recur-end');
+const actRecurDaysGrp = document.getElementById('act-recur-days-group');
+
+// Toggle recurrence panel
+actRecurEnabled.addEventListener('change', () => {
+  actRecurSection.classList.toggle('open', actRecurEnabled.checked);
+  if (actRecurEnabled.checked) {
+    // Set minimum end date when panel opens
+    updateRecurEndMin();
+  }
+});
+
+// Show/hide days-of-week group based on frequency
+actRecurFreq.addEventListener('change', () => {
+  actRecurDaysGrp.style.display = actRecurFreq.value === 'weekly' ? '' : 'none';
+});
+
+// Keep 'Repetir hasta' minimum in sync with start date
+actDate.addEventListener('change', updateRecurEndMin);
+function updateRecurEndMin() {
+  if (actDate.value) {
+    actRecurEnd.min = actDate.value;
+    // Advance default to 1 month ahead if not yet set
+    if (!actRecurEnd.value || actRecurEnd.value <= actDate.value) {
+      const d = new Date(actDate.value + 'T00:00:00');
+      d.setMonth(d.getMonth() + 1);
+      actRecurEnd.value = d.toISOString().slice(0, 10);
+    }
+  }
+}
+
 actForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const valid = validateFields({
@@ -530,21 +620,57 @@ actForm.addEventListener('submit', async (e) => {
   });
   if (!valid) return;
 
+  // ─ Validate recurrence fields if enabled ─
+  let recurrence = null;
+  if (actRecurEnabled.checked) {
+    const freq    = actRecurFreq.value;
+    const endDt   = actRecurEnd.value;
+    const daysEls = document.querySelectorAll('input[name="act-dow"]:checked');
+    const dow     = [...daysEls].map(el => Number(el.value));
+
+    const errEnd  = document.getElementById('err-recur-end');
+    const errDays = document.getElementById('err-recur-days');
+    errEnd.textContent  = '';
+    errDays.textContent = '';
+
+    if (!endDt) {
+      errEnd.textContent = 'Indica hasta cuándo se repite.';
+      return;
+    }
+    if (endDt <= actDate.value) {
+      errEnd.textContent = 'La fecha de fin debe ser posterior a la fecha de inicio.';
+      return;
+    }
+    if (freq === 'weekly' && dow.length === 0) {
+      errDays.textContent = 'Selecciona al menos un día de la semana.';
+      return;
+    }
+    recurrence = { enabled: true, frequency: freq, daysOfWeek: dow, endDate: endDt };
+  }
+
   saveFormBtn.textContent = 'Guardando...';
   saveFormBtn.classList.add('btn-loading');
 
   try {
-    await addActivity({
+    const result = await addActivity({
       name:        actName.value,
       date:        actDate.value,
       timeStart:   actTimeStart.value,
       timeEnd:     actTimeEnd.value,
       category:    actCat.value,
       description: actDesc.value,
+      recurrence,
     });
-    showToast('Actividad guardada correctamente');
+    const count = Array.isArray(result) ? result.length : 1;
+    const msg   = count > 1
+      ? `${count} actividades programadas correctamente`
+      : 'Actividad guardada correctamente';
+    showToast(msg);
     actForm.reset();
     actDate.value = todayStr();
+    actRecurSection.classList.remove('open');
+    document.getElementById('err-recur-end').textContent  = '';
+    document.getElementById('err-recur-days').textContent = '';
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
   } finally {
@@ -556,7 +682,9 @@ actForm.addEventListener('submit', async (e) => {
 document.getElementById('clear-form-btn').addEventListener('click', () => {
   actForm.reset();
   actDate.value = todayStr();
-  ['err-name','err-date','err-time'].forEach(id => document.getElementById(id).textContent = '');
+  actRecurSection.classList.remove('open');
+  ['err-name','err-date','err-time','err-recur-end','err-recur-days']
+    .forEach(id => document.getElementById(id).textContent = '');
   [actName, actDate, actTimeEnd].forEach(el => el.classList.remove('invalid'));
 });
 
