@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rutina Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════
+       AUTH SCREEN
+  ══════════════════════════════════════ -->
+  <div class="auth-screen" id="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <div class="logo-icon">✦</div>
+        <span>Rutina</span>
+      </div>
+      <p class="auth-tagline">Tu espacio de productividad personal</p>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Iniciar Sesión</button>
+        <button class="auth-tab" data-tab="register">Crear Cuenta</button>
+      </div>
+
+      <!-- Login -->
+      <form class="auth-form active" id="login-form" novalidate>
+        <div class="form-group">
+          <label for="l-username">Usuario</label>
+          <input type="text" id="l-username" placeholder="tu_usuario" autocomplete="username" maxlength="30" required />
+        </div>
+        <div class="form-group">
+          <label for="l-password">Contraseña</label>
+          <div class="input-password-wrap">
+            <input type="password" id="l-password" placeholder="••••••••" autocomplete="current-password" maxlength="72" required />
+            <button type="button" class="toggle-pw" data-target="l-password">👁</button>
+          </div>
+        </div>
+        <div class="auth-error" id="login-error"></div>
+        <button type="submit" class="btn-primary btn-full" id="login-btn">Iniciar Sesión</button>
+      </form>
+
+      <!-- Register -->
+      <form class="auth-form" id="register-form" novalidate>
+        <div class="form-group">
+          <label for="r-username">Nombre de usuario</label>
+          <input type="text" id="r-username" placeholder="solo letras, números y _" autocomplete="username" maxlength="30" required />
+          <span class="field-hint">Entre 3 y 30 caracteres. Solo minúsculas, números y _</span>
+        </div>
+        <div class="form-group">
+          <label for="r-password">Contraseña</label>
+          <div class="input-password-wrap">
+            <input type="password" id="r-password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" maxlength="72" required />
+            <button type="button" class="toggle-pw" data-target="r-password">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="r-password2">Confirmar contraseña</label>
+          <div class="input-password-wrap">
+            <input type="password" id="r-password2" placeholder="Repite la contraseña" autocomplete="new-password" maxlength="72" required />
+            <button type="button" class="toggle-pw" data-target="r-password2">👁</button>
+          </div>
+        </div>
+        <div class="auth-error" id="register-error"></div>
+        <button type="submit" class="btn-primary btn-full" id="register-btn">Crear Cuenta</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       APP
+  ══════════════════════════════════════ -->
+  <div class="app-wrapper" id="app-wrapper" style="display:none;">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">✦</div>
+      <span>Rutina</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-view="dashboard">
+        <span class="nav-icon">⊞</span> Dashboard
+      </a>
+      <a href="#" class="nav-item" data-view="schedule">
+        <span class="nav-icon">＋</span> Nueva Actividad
+      </a>
+      <a href="#" class="nav-item" data-view="all">
+        <span class="nav-icon">☰</span> Todas las Actividades
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-avatar" id="sidebar-avatar">?</div>
+      <div class="user-info">
+        <div class="user-name" id="sidebar-username">—</div>
+        <button class="logout-btn" id="logout-btn">Cerrar sesión</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-title" id="view-title">Dashboard</div>
+      <div class="topbar-right">
+        <div class="today-badge" id="today-badge"></div>
+        <button class="btn-primary" id="open-modal-btn">+ Nueva Actividad</button>
+      </div>
+    </header>
+
+    <!-- VIEWS -->
+
+    <!-- DASHBOARD VIEW -->
+    <section class="view active" id="view-dashboard">
+
+      <!-- Progress Cards -->
+      <div class="progress-grid">
+        <div class="progress-card">
+          <div class="progress-card-header">
+            <span class="progress-label">Progreso del Día</span>
+            <span class="progress-pct" id="pct-day">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill day" id="bar-day"></div>
+          </div>
+          <div class="progress-sub" id="sub-day">0 de 0 actividades completadas</div>
+        </div>
+        <div class="progress-card">
+          <div class="progress-card-header">
+            <span class="progress-label">Progreso de la Semana</span>
+            <span class="progress-pct" id="pct-week">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill week" id="bar-week"></div>
+          </div>
+          <div class="progress-sub" id="sub-week">0 de 0 actividades completadas</div>
+        </div>
+        <div class="progress-card">
+          <div class="progress-card-header">
+            <span class="progress-label">Progreso del Mes</span>
+            <span class="progress-pct" id="pct-month">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill month" id="bar-month"></div>
+          </div>
+          <div class="progress-sub" id="sub-month">0 de 0 actividades completadas</div>
+        </div>
+      </div>
+
+      <!-- Today's Activities -->
+      <div class="section-header">
+        <h2 class="section-title">Actividades de Hoy</h2>
+        <span class="section-count" id="today-count">0 actividades</span>
+      </div>
+      <div class="activity-list" id="today-list"></div>
+
+    </section>
+
+    <!-- SCHEDULE / NEW ACTIVITY VIEW -->
+    <section class="view" id="view-schedule">
+      <div class="form-card">
+        <h2 class="form-title">Programar Nueva Actividad</h2>
+        <p class="form-subtitle">Completa los campos para agregar una actividad a tu calendario.</p>
+        <form id="activity-form" novalidate>
+          <div class="form-group">
+            <label for="act-name">Nombre de la Actividad *</label>
+            <input type="text" id="act-name" placeholder="Ej: Ejercicio matutino" maxlength="80" required />
+            <span class="field-error" id="err-name"></span>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="act-date">Fecha *</label>
+              <input type="date" id="act-date" required />
+              <span class="field-error" id="err-date"></span>
+            </div>
+            <div class="form-group">
+              <label for="act-category">Categoría</label>
+              <select id="act-category">
+              <option value="general">General</option>
+              <option value="salud">Salud & Bienestar</option>
+              <option value="trabajo">Trabajo</option>
+              <option value="estudio">Estudio</option>
+              <option value="personal">Personal</option>
+              <option value="social">Social</option>
+            </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="act-time-start">Hora de inicio</label>
+              <input type="time" id="act-time-start" />
+            </div>
+            <div class="form-group">
+              <label for="act-time-end">Hora de finalización</label>
+              <input type="time" id="act-time-end" />
+              <span class="field-error" id="err-time"></span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="act-desc">Descripción (opcional)</label>
+            <textarea id="act-desc" placeholder="Añade detalles sobre la actividad..." rows="3" maxlength="500"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" id="clear-form-btn">Limpiar</button>
+            <button type="submit" class="btn-primary" id="save-form-btn">Guardar Actividad</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ALL ACTIVITIES VIEW -->
+    <section class="view" id="view-all">
+      <div class="filter-bar">
+        <input type="text" id="search-input" placeholder="🔍  Buscar actividades..." class="search-input" />
+        <select id="filter-category" class="filter-select">
+          <option value="">Todas las categorías</option>
+          <option value="general">General</option>
+          <option value="salud">Salud & Bienestar</option>
+          <option value="trabajo">Trabajo</option>
+          <option value="estudio">Estudio</option>
+          <option value="personal">Personal</option>
+          <option value="social">Social</option>
+        </select>
+        <select id="filter-status" class="filter-select">
+          <option value="">Todos los estados</option>
+          <option value="pending">Pendientes</option>
+          <option value="done">Completadas</option>
+        </select>
+      </div>
+      <div class="activity-list" id="all-list"></div>
+    </section>
+
+  </main>
+  </div><!-- /.app-wrapper -->
+
+  <!-- MODAL - Nueva Actividad (quick access) -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Nueva Actividad</h3>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <form id="modal-form" novalidate>
+        <div class="form-group">
+          <label for="m-name">Nombre *</label>
+          <input type="text" id="m-name" placeholder="Nombre de la actividad" maxlength="80" required />
+          <span class="field-error" id="merr-name"></span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="m-date">Fecha *</label>
+            <input type="date" id="m-date" required />
+            <span class="field-error" id="merr-date"></span>
+          </div>
+          <div class="form-group">
+            <label for="m-category">Categoría</label>
+            <select id="m-category">
+            <option value="general">General</option>
+            <option value="salud">Salud & Bienestar</option>
+            <option value="trabajo">Trabajo</option>
+            <option value="estudio">Estudio</option>
+            <option value="personal">Personal</option>
+            <option value="social">Social</option>
+          </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="m-time-start">Hora inicio</label>
+            <input type="time" id="m-time-start" />
+          </div>
+          <div class="form-group">
+            <label for="m-time-end">Hora fin</label>
+            <input type="time" id="m-time-end" />
+            <span class="field-error" id="merr-time"></span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="m-desc">Descripción</label>
+          <textarea id="m-desc" placeholder="Descripción opcional..." rows="2" maxlength="500"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" id="modal-cancel">Cancelar</button>
+          <button type="submit" class="btn-primary" id="modal-save-btn">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
