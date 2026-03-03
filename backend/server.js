@@ -31,10 +31,24 @@ app.use(
 );
 
 // ── CORS ────────────────────────────────
+// Frontend is served by the same Express instance, so in production
+// all requests are same-origin and CORS is not needed.
+// The allowed list below covers local development only.
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  // Render preview URLs (auto-detected from env)
+  process.env.RENDER_EXTERNAL_URL,
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? process.env.FRONTEND_URL          // e.g. your deployed domain
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: (origin, cb) => {
+    // Allow requests with no origin (server-to-server, curl, Postman)
+    // or origins in the allowed list
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error('CORS: origin not allowed'));
+  },
   credentials: true,
 }));
 
