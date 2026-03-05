@@ -8,6 +8,12 @@ let authUser = null;   // { id, username }
 //  In-memory activities cache 
 let activities = [];
 
+//  Calendar state 
+let calYear         = new Date().getFullYear();
+let calMonth        = new Date().getMonth();   // 0-indexed
+let calSelectedDate = null;
+let calFilteredActs = [];                      // last filtered set (for panel refresh)
+
 //  Helper: authenticated fetch 
 async function apiFetch(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
@@ -234,7 +240,7 @@ function switchView(name) {
   views.forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
   viewTitle.textContent = VIEW_TITLES[name] || 'Dashboard';
   if (name === 'dashboard') renderDashboard();
-  if (name === 'all')       renderAll();
+  if (name === 'all')       renderCalendar();
 }
 
 navItems.forEach(item => {
@@ -403,34 +409,185 @@ function renderDashboard() {
 }
 
 // 
-// RENDER ALL ACTIVITIES
+// CALENDAR — All Activities View
 // 
-function renderAll() {
-  const allList = document.getElementById('all-list');
-  const q       = document.getElementById('search-input').value.toLowerCase();
-  const cat     = document.getElementById('filter-category').value;
-  const status  = document.getElementById('filter-status').value;
 
-  const filtered = [...activities]
-    .filter(a => {
-      const matchQ = !q || a.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q);
-      const matchC = !cat || a.category === cat;
-      const matchS = !status || (status === 'done' ? a.done : !a.done);
-      return matchQ && matchC && matchS;
-    })
-    .sort((a, b) => b.date.localeCompare(a.date) || (a.timeStart || '').localeCompare(b.timeStart || ''));
-
-  allList.innerHTML = '';
-  if (!filtered.length) {
-    allList.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">\uD83D\uDD0D</div>
-        <p>${activities.length ? 'No hay resultados con esos filtros.' : 'Aún no has creado ninguna actividad.'}</p>
-      </div>`;
-    return;
-  }
-  filtered.forEach(act => allList.appendChild(buildCard(act, { showDate: true })));
+// Returns activities matching current filter controls
+function getFilteredActivities() {
+  const q      = document.getElementById('search-input').value.toLowerCase();
+  const cat    = document.getElementById('filter-category').value;
+  const status = document.getElementById('filter-status').value;
+  return activities.filter(a => {
+    const matchQ = !q || a.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q);
+    const matchC = !cat || a.category === cat;
+    const matchS = !status || (status === 'done' ? a.done : !a.done);
+    return matchQ && matchC && matchS;
+  });
 }
+
+function renderCalendar() {
+  calFilteredActs = getFilteredActivities();
+
+  // Build date → activities map
+  const actByDate = {};
+  calFilteredActs.forEach(a => {
+    (actByDate[a.date] = actByDate[a.date] || []).push(a);
+  });
+
+  const grid  = document.getElementById('cal-grid');
+  const label = document.getElementById('cal-month-label');
+  const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  label.textContent = `${MONTHS[calMonth]} ${calYear}`;
+  grid.innerHTML = '';
+
+  // Day-of-week headers (Mon → Sun)
+  ['Lun','Mar','Mi\u00e9','Jue','Vie','S\u00e1b','Dom'].forEach(d => {
+    const h = document.createElement('div');
+    h.className = 'cal-hdr';
+    h.textContent = d;
+    grid.appendChild(h);
+  });
+
+  // First day of month, adjusted so Mon=0
+  const firstDow    = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const prevTotal   = new Date(calYear, calMonth, 0).getDate();
+  const today       = todayStr();
+  const monthStr    = String(calMonth + 1).padStart(2, '0');
+
+  // Previous-month trailing cells
+  const prevYear  = calMonth === 0 ? calYear - 1 : calYear;
+  const prevMonth = calMonth === 0 ? 12 : calMonth; // 1-indexed
+  for (let i = firstDow - 1; i >= 0; i--) {
+    const d    = prevTotal - i;
+    const dStr = `${prevYear}-${String(prevMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    grid.appendChild(makeCalCell(dStr, d, actByDate, today, true));
+  }
+
+  // Current-month cells
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dStr = `${calYear}-${monthStr}-${String(d).padStart(2,'0')}`;
+    grid.appendChild(makeCalCell(dStr, d, actByDate, today, false));
+  }
+
+  // Next-month leading cells to complete the last row
+  const nextYear  = calMonth === 11 ? calYear + 1 : calYear;
+  const nextMonth = calMonth === 11 ? 1 : calMonth + 2; // 1-indexed
+  const trailing  = (firstDow + daysInMonth) % 7;
+  const fill      = trailing === 0 ? 0 : 7 - trailing;
+  for (let d = 1; d <= fill; d++) {
+    const dStr = `${nextYear}-${String(nextMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    grid.appendChild(makeCalCell(dStr, d, actByDate, today, true));
+  }
+
+  // Refresh panel if a date is still selected
+  if (calSelectedDate) renderCalDayPanel(calSelectedDate);
+}
+
+function makeCalCell(dateStr, dayNum, actByDate, today, isOther) {
+  const cell    = document.createElement('div');
+  const classes = ['cal-day'];
+  if (isOther)               classes.push('other-month');
+  if (dateStr === today)     classes.push('today');
+  if (dateStr === calSelectedDate) classes.push('selected');
+  cell.className  = classes.join(' ');
+  cell.dataset.date = dateStr;
+
+  const num = document.createElement('span');
+  num.className   = 'cal-day-num';
+  num.textContent = dayNum;
+  cell.appendChild(num);
+
+  const dayActs = actByDate[dateStr] || [];
+  if (dayActs.length) {
+    const dotsEl = document.createElement('div');
+    dotsEl.className = 'cal-dots';
+    dayActs.slice(0, 5).forEach(a => {
+      const dot = document.createElement('span');
+      dot.className = `cal-dot cat-${a.category || 'general'}${a.done ? ' done-dot' : ''}`;
+      dot.title     = a.name;
+      dotsEl.appendChild(dot);
+    });
+    if (dayActs.length > 5) {
+      const more = document.createElement('span');
+      more.className   = 'cal-more';
+      more.textContent = `+${dayActs.length - 5}`;
+      dotsEl.appendChild(more);
+    }
+    cell.appendChild(dotsEl);
+  }
+
+  cell.addEventListener('click', () => {
+    if (calSelectedDate === dateStr) {
+      // Deselect — close panel
+      calSelectedDate = null;
+      document.querySelectorAll('.cal-day.selected').forEach(el => el.classList.remove('selected'));
+      document.getElementById('cal-day-panel').classList.remove('open');
+    } else {
+      calSelectedDate = dateStr;
+      document.querySelectorAll('.cal-day.selected').forEach(el => el.classList.remove('selected'));
+      cell.classList.add('selected');
+      renderCalDayPanel(dateStr);
+    }
+  });
+
+  return cell;
+}
+
+function renderCalDayPanel(dateStr) {
+  const panel   = document.getElementById('cal-day-panel');
+  const listEl  = document.getElementById('cal-panel-list');
+  const titleEl = document.getElementById('cal-panel-title');
+
+  const dayActs = calFilteredActs
+    .filter(a => a.date === dateStr)
+    .sort((a, b) => (a.timeStart || '99:99').localeCompare(b.timeStart || '99:99'));
+
+  const [y, m, d] = dateStr.split('-');
+  const dt     = new Date(+y, +m - 1, +d);
+  const days   = ['Domingo','Lunes','Martes','Mi\u00e9rcoles','Jueves','Viernes','S\u00e1bado'];
+  const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  titleEl.textContent = `${days[dt.getDay()]} ${+d} de ${months[+m - 1]} ${y}`;
+
+  listEl.innerHTML = '';
+
+  if (!dayActs.length) {
+    const hasFilter = document.getElementById('search-input').value
+                   || document.getElementById('filter-category').value
+                   || document.getElementById('filter-status').value;
+    listEl.innerHTML = `
+      <div class="empty-state" style="padding:18px 0;">
+        <div class="empty-icon">\uD83D\uDCCB</div>
+        <p>${hasFilter ? 'Sin resultados con estos filtros para este d\u00eda.' : 'Sin actividades para este d\u00eda.'}</p>
+      </div>`;
+  } else {
+    dayActs.forEach(act => listEl.appendChild(buildCard(act)));
+  }
+
+  panel.classList.add('open');
+}
+
+// Close panel button
+document.getElementById('cal-panel-close').addEventListener('click', () => {
+  calSelectedDate = null;
+  document.querySelectorAll('.cal-day.selected').forEach(el => el.classList.remove('selected'));
+  document.getElementById('cal-day-panel').classList.remove('open');
+});
+
+// Month navigation
+document.getElementById('cal-prev').addEventListener('click', () => {
+  calSelectedDate = null;
+  document.getElementById('cal-day-panel').classList.remove('open');
+  if (calMonth === 0) { calMonth = 11; calYear--; } else calMonth--;
+  renderCalendar();
+});
+document.getElementById('cal-next').addEventListener('click', () => {
+  calSelectedDate = null;
+  document.getElementById('cal-day-panel').classList.remove('open');
+  if (calMonth === 11) { calMonth = 0; calYear++; } else calMonth++;
+  renderCalendar();
+});
 
 // 
 // TOGGLE DONE
@@ -447,7 +604,7 @@ async function toggleDone(id) {
     const idx = activities.findIndex(a => a._id === id);
     if (idx !== -1) activities[idx] = res.data;
     if (currentView === 'dashboard') renderDashboard();
-    else renderAll();
+    else renderCalendar();
     showToast(newDone ? 'Actividad completada' : 'Marcada como pendiente');
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
@@ -488,7 +645,7 @@ async function doDelete(id, scope) {
     await loadActivities();
     hideRecurDeleteConfirm();
     if (currentView === 'dashboard') renderDashboard();
-    else renderAll();
+    else renderCalendar();
     const msg = scope === 'future' ? 'Serie de actividades eliminada' : 'Actividad eliminada';
     showToast(msg, 'error');
   } catch (err) {
@@ -757,11 +914,11 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
 });
 
 // 
-// FILTERS (All Activities view)
+// FILTERS (Calendar view — live update)
 // 
-document.getElementById('search-input').addEventListener('input',    renderAll);
-document.getElementById('filter-category').addEventListener('change', renderAll);
-document.getElementById('filter-status').addEventListener('change',   renderAll);
+document.getElementById('search-input').addEventListener('input',    renderCalendar);
+document.getElementById('filter-category').addEventListener('change', renderCalendar);
+document.getElementById('filter-status').addEventListener('change',   renderCalendar);
 
 // 
 // TOPBAR DATE BADGE

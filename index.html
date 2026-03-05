@@ -253,14 +253,16 @@
       </div>
     </section>
 
-    <!-- ALL ACTIVITIES VIEW -->
+    <!-- ALL ACTIVITIES VIEW — Calendar -->
     <section class="view" id="view-all">
+
+      <!-- Filters -->
       <div class="filter-bar">
-        <input type="text" id="search-input" placeholder="🔍  Buscar actividades..." class="search-input" />
+        <input type="text" id="search-input" placeholder="&#128269;  Buscar actividades..." class="search-input" />
         <select id="filter-category" class="filter-select">
           <option value="">Todas las categorías</option>
           <option value="general">General</option>
-          <option value="salud">Salud & Bienestar</option>
+          <option value="salud">Salud &amp; Bienestar</option>
           <option value="trabajo">Trabajo</option>
           <option value="estudio">Estudio</option>
           <option value="personal">Personal</option>
@@ -272,7 +274,26 @@
           <option value="done">Completadas</option>
         </select>
       </div>
-      <div class="activity-list" id="all-list"></div>
+
+      <!-- Month navigation -->
+      <div class="cal-nav">
+        <button class="cal-nav-btn" id="cal-prev">&#8249;</button>
+        <h3 class="cal-month-label" id="cal-month-label"></h3>
+        <button class="cal-nav-btn" id="cal-next">&#8250;</button>
+      </div>
+
+      <!-- Calendar grid (day headers + cells injected by JS) -->
+      <div class="cal-grid" id="cal-grid"></div>
+
+      <!-- Day detail panel (shown on cell click) -->
+      <div class="cal-day-panel" id="cal-day-panel">
+        <div class="cal-panel-header">
+          <span class="cal-panel-title" id="cal-panel-title"></span>
+          <button class="cal-panel-close" id="cal-panel-close">&#x2715;</button>
+        </div>
+        <div class="cal-panel-list" id="cal-panel-list"></div>
+      </div>
+
     </section>
 
   </main>
