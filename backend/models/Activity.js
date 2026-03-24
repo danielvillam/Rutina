@@ -68,6 +68,12 @@ const activitySchema = new mongoose.Schema(
       trim:      true,
       maxlength: [500, 'La descripción no puede superar 500 caracteres.'],
     },
+    reminderMinutesBefore: {
+      type:    Number,
+      default: null,
+      min:     [0, 'El recordatorio no puede ser negativo.'],
+      max:     [120, 'El recordatorio no puede superar 2 horas.'],
+    },
     done: {
       type:    Boolean,
       default: false,

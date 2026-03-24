@@ -16,6 +16,18 @@ function sanitizeStr(v) {
   return typeof v === 'string' ? v.replace(/[${}]/g, '').trim() : '';
 }
 
+function parseReminderMinutes(raw) {
+  if (raw === undefined || raw === null || raw === '') return { ok: true, value: null };
+  const value = Number(raw);
+  if (!Number.isInteger(value)) {
+    return { ok: false, message: 'El recordatorio debe ser un número entero de minutos.' };
+  }
+  if (value < 0 || value > 120) {
+    return { ok: false, message: 'El recordatorio debe estar entre 0 y 120 minutos.' };
+  }
+  return { ok: true, value };
+}
+
 /* ──────────────────────────────────────────────────────────────────
    generateDates()
    Returns an array of "YYYY-MM-DD" strings for each occurrence of
@@ -91,7 +103,7 @@ router.get('/', async (req, res) => {
 ────────────────────────────────────────── */
 router.post('/', async (req, res) => {
   try {
-    const { name, date, timeStart, timeEnd, category, description } = req.body;
+    const { name, date, timeStart, timeEnd, category, description, reminderMinutesBefore } = req.body;
 
     const cleanName = sanitizeStr(name);
     const cleanDate = sanitizeStr(date);
@@ -113,6 +125,14 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'La hora de fin debe ser posterior a la hora de inicio.' });
     }
 
+    const reminderParsed = parseReminderMinutes(reminderMinutesBefore);
+    if (!reminderParsed.ok) {
+      return res.status(400).json({ success: false, message: reminderParsed.message });
+    }
+    if (reminderParsed.value !== null && !cleanTS) {
+      return res.status(400).json({ success: false, message: 'Para usar recordatorio debes indicar hora de inicio.' });
+    }
+
     const catFinal = VALID_CATS.includes(cleanCat) ? cleanCat : 'general';
 
     // ── Base activity data ──
@@ -124,6 +144,7 @@ router.post('/', async (req, res) => {
       timeEnd:     cleanTE,
       category:    catFinal,
       description: cleanDesc,
+      reminderMinutesBefore: reminderParsed.value,
     };
 
     // ── Recurrence path ──────────────────────────────────────────────
@@ -183,7 +204,7 @@ router.patch('/:id', async (req, res) => {
     const activity = await Activity.findOne({ _id: req.params.id, userId: req.user.id });
     if (!activity) return res.status(404).json({ success: false, message: 'Actividad no encontrada.' });
 
-    const allowed = ['done', 'name', 'date', 'timeStart', 'timeEnd', 'category', 'description'];
+    const allowed = ['done', 'name', 'date', 'timeStart', 'timeEnd', 'category', 'description', 'reminderMinutesBefore'];
     const updates = {};
 
     for (const key of allowed) {
@@ -191,6 +212,15 @@ router.patch('/:id', async (req, res) => {
 
       if (key === 'done') {
         updates.done = Boolean(req.body.done);
+        continue;
+      }
+
+      if (key === 'reminderMinutesBefore') {
+        const reminderParsed = parseReminderMinutes(req.body.reminderMinutesBefore);
+        if (!reminderParsed.ok) {
+          return res.status(400).json({ success: false, message: reminderParsed.message });
+        }
+        updates.reminderMinutesBefore = reminderParsed.value;
         continue;
       }
 
@@ -208,8 +238,12 @@ router.patch('/:id', async (req, res) => {
     // Re-validate time range after potential individual updates
     const newStart = updates.timeStart ?? activity.timeStart;
     const newEnd   = updates.timeEnd   ?? activity.timeEnd;
+    const newReminder = updates.reminderMinutesBefore ?? activity.reminderMinutesBefore;
     if (newStart && newEnd && newEnd < newStart) {
       return res.status(400).json({ success: false, message: 'La hora de fin debe ser posterior a la de inicio.' });
+    }
+    if (newReminder !== null && !newStart) {
+      return res.status(400).json({ success: false, message: 'Para usar recordatorio debes indicar hora de inicio.' });
     }
 
     Object.assign(activity, updates);

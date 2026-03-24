@@ -202,6 +202,20 @@
             </div>
           </div>
           <div class="form-group">
+            <label for="act-reminder">Alerta antes de la actividad</label>
+            <select id="act-reminder">
+              <option value="">Sin alerta</option>
+              <option value="0">Al iniciar</option>
+              <option value="5">5 minutos antes</option>
+              <option value="10">10 minutos antes</option>
+              <option value="15">15 minutos antes</option>
+              <option value="30">30 minutos antes</option>
+              <option value="60">1 hora antes</option>
+              <option value="120">2 horas antes</option>
+            </select>
+            <span class="field-hint">Para usar alerta debes definir hora de inicio.</span>
+          </div>
+          <div class="form-group">
             <label for="act-desc">Descripción (opcional)</label>
             <textarea id="act-desc" placeholder="Añade detalles sobre la actividad..." rows="3" maxlength="500"></textarea>
           </div>
@@ -340,6 +354,20 @@
             <input type="time" id="m-time-end" />
             <span class="field-error" id="merr-time"></span>
           </div>
+        </div>
+        <div class="form-group">
+          <label for="m-reminder">Alerta antes de la actividad</label>
+          <select id="m-reminder">
+            <option value="">Sin alerta</option>
+            <option value="0">Al iniciar</option>
+            <option value="5">5 minutos antes</option>
+            <option value="10">10 minutos antes</option>
+            <option value="15">15 minutos antes</option>
+            <option value="30">30 minutos antes</option>
+            <option value="60">1 hora antes</option>
+            <option value="120">2 horas antes</option>
+          </select>
+          <span class="field-hint">Requiere hora de inicio.</span>
         </div>
         <div class="form-group">
           <label for="m-desc">Descripción</label>

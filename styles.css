@@ -397,6 +397,15 @@ body {
   gap: 4px;
 }
 
+.act-reminder {
+  font-size: 0.74rem;
+  color: #fbbf24;
+  background: rgba(245,158,11,0.14);
+  border: 1px solid rgba(245,158,11,0.26);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
 .act-cat-badge {
   font-size: 0.7rem;
   font-weight: 600;
@@ -598,6 +607,7 @@ input.invalid, textarea.invalid, select.invalid { border-color: var(--accent3); 
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast.success { border-left: 3px solid var(--success); }
 .toast.error   { border-left: 3px solid var(--accent3); }
+.toast.warning { border-left: 3px solid var(--warning); }
 
 /* ──────────────────────────────────────────
    RESPONSIVE

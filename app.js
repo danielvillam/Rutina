@@ -8,6 +8,11 @@ let authUser = null;   // { id, username }
 //  In-memory activities cache 
 let activities = [];
 
+//  Reminder runtime state
+let reminderTicker = null;
+const REMINDER_TICK_MS = 30 * 1000;
+const REMINDER_STORAGE_KEY = 'rutina_reminder_fired';
+
 //  Calendar state 
 let calYear         = new Date().getFullYear();
 let calMonth        = new Date().getMonth();   // 0-indexed
@@ -157,6 +162,7 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   token    = null;
   authUser = null;
   activities = [];
+  clearReminderTicker();
   localStorage.removeItem('rutina_token');
   showAuthScreen();
   document.getElementById('login-form').reset();
@@ -210,12 +216,151 @@ function formatTimeRange(ts, te) {
   return `Fin: ${te}`;
 }
 
+function parseReminderMinutes(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+function reminderText(minutes) {
+  if (minutes === 0) return 'Al iniciar';
+  if (minutes === 60) return '1 hora antes';
+  if (minutes === 120) return '2 horas antes';
+  return `${minutes} min antes`;
+}
+
+function getReminderStore() {
+  try {
+    const raw = localStorage.getItem(REMINDER_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setReminderStore(store) {
+  localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify(store));
+}
+
+function reminderFingerprint(act) {
+  return [
+    act._id,
+    act.updatedAt || '',
+    act.date || '',
+    act.timeStart || '',
+    act.reminderMinutesBefore ?? '',
+  ].join('|');
+}
+
+function parseStartTimestamp(act) {
+  if (!act.date || !act.timeStart) return null;
+  const start = new Date(`${act.date}T${act.timeStart}:00`);
+  const ts = start.getTime();
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function playReminderSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    gain.gain.exponentialRampToValueAtTime(0.1, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    osc.start(now);
+    osc.stop(now + 0.36);
+    osc.onended = () => ctx.close().catch(() => {});
+  } catch {
+    // Silent fail if browser blocks audio.
+  }
+}
+
+function maybeShowSystemNotification(act, mins) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  const when = mins === 0 ? 'ahora' : reminderText(mins);
+  new Notification('Recordatorio de actividad', {
+    body: `${act.name} (${when})`,
+    tag: `act-${act._id}`,
+    renotify: true,
+  });
+}
+
+function requestNotificationPermissionOnUserAction(reminderMinutes) {
+  if (reminderMinutes === null) return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'default') return;
+  Notification.requestPermission().catch(() => {});
+}
+
+function triggerReminder(act, mins) {
+  const msg = mins === 0
+    ? `Empieza ahora: ${act.name}`
+    : `Recordatorio: ${act.name} (${reminderText(mins)})`;
+  showToast(msg, 'warning');
+  playReminderSound();
+  maybeShowSystemNotification(act, mins);
+}
+
+function clearReminderTicker() {
+  if (reminderTicker) {
+    clearInterval(reminderTicker);
+    reminderTicker = null;
+  }
+}
+
+function runReminderCheck() {
+  if (!activities.length) return;
+  const now = Date.now();
+  const fired = getReminderStore();
+  let changed = false;
+
+  for (const act of activities) {
+    if (act.done) continue;
+    const mins = Number.isInteger(act.reminderMinutesBefore) ? act.reminderMinutesBefore : null;
+    if (mins === null) continue;
+
+    const startTs = parseStartTimestamp(act);
+    if (!startTs) continue;
+
+    const triggerTs = startTs - (mins * 60 * 1000);
+    const fingerprint = reminderFingerprint(act);
+
+    if (fired[fingerprint]) continue;
+
+    // Fire once if we are between trigger time and 2 minutes after start.
+    if (now >= triggerTs && now <= (startTs + 2 * 60 * 1000)) {
+      triggerReminder(act, mins);
+      fired[fingerprint] = Date.now();
+      changed = true;
+    }
+  }
+
+  if (changed) setReminderStore(fired);
+}
+
+function restartReminderEngine() {
+  clearReminderTicker();
+  runReminderCheck();
+  reminderTicker = setInterval(runReminderCheck, REMINDER_TICK_MS);
+}
+
 // 
 // API  ACTIVITIES
 // 
 async function loadActivities() {
   const data = await apiFetch('/activities');
   activities = data.data || [];
+  restartReminderEngine();
 }
 
 // 
@@ -334,6 +479,13 @@ function buildCard(act, { showDate = false } = {}) {
     timeEl.className = 'act-duration';
     timeEl.textContent = '\uD83D\uDD50 ' + timeRange;
     meta.appendChild(timeEl);
+  }
+
+  if (Number.isInteger(act.reminderMinutesBefore)) {
+    const reminderEl = document.createElement('span');
+    reminderEl.className = 'act-reminder';
+    reminderEl.textContent = '\u23F0 ' + reminderText(act.reminderMinutesBefore);
+    meta.appendChild(reminderEl);
   }
 
   // Category badge
@@ -603,6 +755,7 @@ async function toggleDone(id) {
     });
     const idx = activities.findIndex(a => a._id === id);
     if (idx !== -1) activities[idx] = res.data;
+    restartReminderEngine();
     if (currentView === 'dashboard') renderDashboard();
     else renderCalendar();
     showToast(newDone ? 'Actividad completada' : 'Marcada como pendiente');
@@ -678,9 +831,11 @@ async function addActivity(data) {
   // Recurrent creation returns an array
   if (Array.isArray(res.data)) {
     activities.push(...res.data);
+    restartReminderEngine();
     return res.data;          // array
   }
   activities.push(res.data);
+  restartReminderEngine();
   return res.data;            // single object
 }
 
@@ -727,6 +882,7 @@ const actTimeStart = document.getElementById('act-time-start');
 const actTimeEnd   = document.getElementById('act-time-end');
 const actCat       = document.getElementById('act-category');
 const actDesc      = document.getElementById('act-desc');
+const actReminder  = document.getElementById('act-reminder');
 const saveFormBtn  = document.getElementById('save-form-btn');
 
 // ─ Recurrence controls ─
@@ -777,6 +933,14 @@ actForm.addEventListener('submit', async (e) => {
   });
   if (!valid) return;
 
+  const reminderMinutesBefore = parseReminderMinutes(actReminder.value);
+  if (reminderMinutesBefore !== null && !actTimeStart.value) {
+    document.getElementById('err-time').textContent = 'Para usar alerta debes indicar hora de inicio.';
+    actTimeStart.classList.add('invalid');
+    return;
+  }
+  requestNotificationPermissionOnUserAction(reminderMinutesBefore);
+
   // ─ Validate recurrence fields if enabled ─
   let recurrence = null;
   if (actRecurEnabled.checked) {
@@ -816,6 +980,7 @@ actForm.addEventListener('submit', async (e) => {
       timeEnd:     actTimeEnd.value,
       category:    actCat.value,
       description: actDesc.value,
+      reminderMinutesBefore,
       recurrence,
     });
     const count = Array.isArray(result) ? result.length : 1;
@@ -855,6 +1020,7 @@ const mTimeStart   = document.getElementById('m-time-start');
 const mTimeEnd     = document.getElementById('m-time-end');
 const mCat         = document.getElementById('m-category');
 const mDesc        = document.getElementById('m-desc');
+const mReminder    = document.getElementById('m-reminder');
 const modalSaveBtn = document.getElementById('modal-save-btn');
 
 function openModal() {
@@ -889,6 +1055,14 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
   });
   if (!valid) return;
 
+  const reminderMinutesBefore = parseReminderMinutes(mReminder.value);
+  if (reminderMinutesBefore !== null && !mTimeStart.value) {
+    document.getElementById('merr-time').textContent = 'Para usar alerta debes indicar hora de inicio.';
+    mTimeStart.classList.add('invalid');
+    return;
+  }
+  requestNotificationPermissionOnUserAction(reminderMinutesBefore);
+
   modalSaveBtn.textContent = 'Guardando...';
   modalSaveBtn.classList.add('btn-loading');
 
@@ -900,6 +1074,7 @@ document.getElementById('modal-form').addEventListener('submit', async (e) => {
       timeEnd:     mTimeEnd.value,
       category:    mCat.value,
       description: mDesc.value,
+      reminderMinutesBefore,
     });
     closeModal();
     showToast('Actividad guardada correctamente');
